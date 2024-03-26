@@ -1,0 +1,40 @@
+version: '3.7'
+
+services:
+  mongo:
+    image: mongo
+    container_name: mongodb_notifications
+    restart: on-failure
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data:/data/db
+
+  backend:
+    container_name: backend
+    build:
+      context: .
+      dockerfile: src/main/docker/Dockerfile.jvm
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - MONGO_URI=mongodb://@mongo:27017
+      - MONGO_DB=notifications
+      - QUARKUS_ARTEMIS_URL=tcp://artemis:61616
+      - QUARKUS_ARTEMIS_USERNAME=quarkus
+      - QUARKUS_ARTEMIS_PASSWORD=quarkus
+    depends_on:
+      - mongo
+
+  artemis:
+    image: quay.io/artemiscloud/activemq-artemis-broker:1.0.25
+    container_name: artemis
+    restart: unless-stopped
+    ports:
+      - "8161:8161"
+      - "61616:61616"
+      - "5672:5672"
+    environment:
+      - AMQ_USER=quarkus
+      - AMQ_PASSWORD=quarkus
