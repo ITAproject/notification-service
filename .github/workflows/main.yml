@@ -1,0 +1,48 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  MONGO_URI: mongodb://localhost:27017
+    MONGO_DB: notifications
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+
+    services:
+      mongo:
+        image: mongo
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd mongo
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      active-mq:
+        image: quay.io/artemiscloud/activemq-artemis-broker:1.0.25
+        ports:
+          - 61616:61616
+          - 5672:5672
+          - 8161:8161
+        env:
+          QUARKUS_ARTEMIS_USERNAME: quarkus
+          QUARKUS_ARTEMIS_PASSWORD: quarkus
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and test with Maven
+        run: mvn -B package --file pom.xml
