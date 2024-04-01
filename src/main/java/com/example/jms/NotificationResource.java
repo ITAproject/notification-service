@@ -7,10 +7,11 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 
-@Path("/notifications")
+@Path("/jms")
 public class NotificationResource {
 
     @Inject
@@ -19,11 +20,11 @@ public class NotificationResource {
     private final Logger log = Logger.getLogger(NotificationResource.class.getName());
 
     @GET
-    @Path("last")
-    @Produces(MediaType.TEXT_PLAIN)
-    public String last() {
-        log.info("Getting last.");
-        return consumer.getLastNotification();
+    @Path("notifications")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<String> getAllNotifications() {
+        log.info("Getting all notifications.");
+        return consumer.getNotifications();
     }
 }
 

@@ -1,16 +1,22 @@
 package com.example;
 
+import io.quarkus.mongodb.panache.reactive.ReactivePanacheQuery;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
+import jakarta.jms.ConnectionFactory;
+import jakarta.jms.JMSContext;
+import jakarta.jms.Topic;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import org.bson.types.ObjectId;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.List;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-@Path("/notification")
+@Path("/notifications")
 public class NotificationResource {
 
     private final Logger log = Logger.getLogger(NotificationResource.class.getName());
@@ -18,40 +24,60 @@ public class NotificationResource {
     @Inject
     NotificationRepository notificationRepository;
 
+    @Inject
+    ConnectionFactory connectionFactory;
+
+    @ConfigProperty(name = "quarkus.mongodb.connection-string")
+    String connectionString;
+
     @POST
-    public Uni<Void> createNotification(String message) {
-        log.info("Creating notification with message: " + message);
-        return notificationRepository.add(message);
-    }
+    public Uni<Response> createNotification(Notification notification) {
+        log.info("Creating notification with message: " + notification.message);
+        return notificationRepository.persist(notification)
+                .onItem().transform(n -> {
+                    // Publish notification to JMS topic
+                    try (JMSContext context = connectionFactory.createContext(JMSContext.AUTO_ACKNOWLEDGE)) {
+                        context.createProducer().send(context.createQueue("notifications"), notification.message);
+                        log.info("Notification published to JMS topic");
+                    } catch (Exception e) {
+                        log.severe(e.getMessage());
+                    }
+                    return Response.status(Response.Status.CREATED).build();
+                });
+    };
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<String> getAllNotifications() {
+    public Uni<List<Notification>> getAllNotifications() {
         log.info("Getting all notifications");
-        return notificationRepository.listAll().await().indefinitely().stream().map(Notification::getMessage).collect(Collectors.toList());
+        return notificationRepository.listAll();
     }
 
     @GET
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Notification getNotification(@PathParam("id") String id) {
+    public Uni<Notification> getNotification(@PathParam("id") String id) {
         log.info("Getting notification with ID: " + id);
-        return notificationRepository.get(new ObjectId(id)).await().indefinitely();
-    }
-
-    @PUT
-    @Path("/{id}")
-    public Uni<Void> updateNotification(@PathParam("id") String id, String message) {
-        log.info("Updating notification with ID: " + id);
-        return notificationRepository.update(new ObjectId(id), message);
+        return notificationRepository.findById(new ObjectId(id));
     }
 
     @DELETE
     @Path("/{id}")
-    @Produces(MediaType.TEXT_PLAIN)
-    public void deleteNotification(@PathParam("id") String id) {
+    public Uni<Response> deleteNotification(@PathParam("id") String id) {
         log.info("Deleting notification with ID: " + id);
-        notificationRepository.delete(new ObjectId(id)).await().indefinitely();
+        return notificationRepository.deleteById(new ObjectId(id))
+                .onItem().transform(n -> Response.status(Response.Status.NO_CONTENT).build());
     }
 
+    @PUT
+    @Path("/{id}")
+    public Uni<Response> updateNotification(@PathParam("id") String id, Notification notification) {
+        log.info("Updating notification with ID: " + id);
+        notification.id = new ObjectId(id);
+        log.info("Updating notification with ID: " + id);
+        return notificationRepository.update(notification)
+                .map(__ -> Response.ok().build());
+    }
 }
+
+

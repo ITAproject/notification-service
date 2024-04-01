@@ -2,25 +2,26 @@ version: '3.7'
 
 services:
   mongo:
-    image: mongo
-    container_name: mongodb_notifications
-    restart: on-failure
+    image: mongo:4.0.4
+    container_name: mongo
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
-      - ./data:/data/db
+      - ./data:/data/db_data
 
   backend:
-    container_name: backend
+    container_name: backend_notifications
     build:
       context: .
       dockerfile: src/main/docker/Dockerfile.jvm
-    restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - MONGO_URI=mongodb://@mongo:27017
-      - MONGO_DB=notifications
+      - QUARKUS_MONGODB_CONNECTION_STRING=mongodb://root:root@mongo:27017
+      - QUARKUS_MONGODB_DATABASE=notifications
       - QUARKUS_ARTEMIS_URL=tcp://artemis:61616
       - QUARKUS_ARTEMIS_USERNAME=quarkus
       - QUARKUS_ARTEMIS_PASSWORD=quarkus
@@ -30,7 +31,6 @@ services:
   artemis:
     image: quay.io/artemiscloud/activemq-artemis-broker:1.0.25
     container_name: artemis
-    restart: unless-stopped
     ports:
       - "8161:8161"
       - "61616:61616"

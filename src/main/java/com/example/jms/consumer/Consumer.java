@@ -5,10 +5,15 @@ import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 import jakarta.jms.*;
+import java.util.concurrent.atomic.AtomicReference;
+
 
 /**
  * A bean consuming notifications from the JMS queue.
@@ -21,10 +26,12 @@ public class Consumer implements Runnable {
 
     private final ExecutorService scheduler = Executors.newSingleThreadExecutor();
 
-    private volatile String lastNotification;
+    private List<String> notifications = new ArrayList<>();
 
-    public String getLastNotification() {
-        return lastNotification;
+    private final Logger log = Logger.getLogger(Consumer.class.getName());
+
+    public List<String> getNotifications() {
+        return notifications;
     }
 
     void onStart(@Observes StartupEvent ev) {
@@ -41,8 +48,11 @@ public class Consumer implements Runnable {
             JMSConsumer consumer = context.createConsumer(context.createQueue("notifications"));
             while (true) {
                 Message message = consumer.receive();
+                log.info("Received message: " + message);
                 if (message == null) return;
-                lastNotification = message.getBody(String.class);
+                String notification = message.getBody(String.class);
+                log.info("Received message: " + notification);
+                notifications.add(notification);
             }
         } catch (JMSException e) {
             throw new RuntimeException(e);
