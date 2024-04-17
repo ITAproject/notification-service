@@ -44,3 +44,16 @@ jobs:
 
       - name: Build and test with Maven
         run: mvn -B package --file pom.xml
+
+      - name: Docker login
+        run: echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASS }}
+
+      - name: Build Docker image
+        run: docker build -t jernejofic444/notification-service -f src/main/docker/Dockerfile.jvm .
+
+
+      - name: Push Docker image
+        run: docker push jernejofic444/notification-service
